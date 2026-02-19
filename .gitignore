@@ -39,3 +39,4 @@ temp/
 # VM assets (large binaries, not tracked in git)
 assets/vmlinux
 assets/rootfs.ext4
+assets/qemu/

@@ -2,7 +2,7 @@ DOCKER_IMAGE := virtualghost-builder
 DOCKER_TAG   := latest
 ASSETS_DIR   := assets
 
-.PHONY: assets docker-build guest-agent clean-assets
+.PHONY: assets docker-build guest-agent package-qemu clean-assets
 
 # Build kernel + rootfs via Docker, output to assets/
 assets: docker-build
@@ -20,6 +20,15 @@ guest-agent:
 	cargo build --manifest-path guest/ghostly-agent/Cargo.toml \
 		--target x86_64-unknown-linux-musl --release
 
+# Package QEMU from system install into assets/qemu/ for embedding
+package-qemu:
+ifeq ($(OS),Windows_NT)
+	powershell -ExecutionPolicy Bypass -File scripts/package-qemu.ps1
+else
+	bash scripts/package-qemu.sh
+endif
+
 # Remove built assets
 clean-assets:
 	rm -f $(ASSETS_DIR)/vmlinux $(ASSETS_DIR)/rootfs.ext4
+	rm -rf $(ASSETS_DIR)/qemu/

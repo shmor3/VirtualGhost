@@ -22,11 +22,42 @@ impl QemuProcess {
             "Spawning QEMU"
         );
 
-        let child = Command::new(&config.qemu_bin)
-            .args(&args)
-            .stdin(std::process::Stdio::null())
-            .spawn()
-            .map_err(VmError::SpawnFailed)?;
+        let mut cmd = Command::new(&config.qemu_bin);
+        cmd.args(&args).stdin(std::process::Stdio::null());
+
+        // Ensure extracted QEMU can find its DLLs/shared libraries
+        if let Some(qemu_dir) = config.qemu_bin.parent() {
+            #[cfg(target_os = "windows")]
+            {
+                let path_var = std::env::var("PATH").unwrap_or_default();
+                let new_path = format!("{};{}", qemu_dir.display(), path_var);
+                cmd.env("PATH", new_path);
+            }
+
+            #[cfg(target_os = "linux")]
+            {
+                let ld_path = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
+                let new_path = if ld_path.is_empty() {
+                    qemu_dir.display().to_string()
+                } else {
+                    format!("{}:{}", qemu_dir.display(), ld_path)
+                };
+                cmd.env("LD_LIBRARY_PATH", new_path);
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                let dyld_path = std::env::var("DYLD_LIBRARY_PATH").unwrap_or_default();
+                let new_path = if dyld_path.is_empty() {
+                    qemu_dir.display().to_string()
+                } else {
+                    format!("{}:{}", qemu_dir.display(), dyld_path)
+                };
+                cmd.env("DYLD_LIBRARY_PATH", new_path);
+            }
+        }
+
+        let child = cmd.spawn().map_err(VmError::SpawnFailed)?;
 
         info!(pid = child.id(), "QEMU process started");
 

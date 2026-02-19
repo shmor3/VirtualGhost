@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 /// Hardware accelerator for QEMU.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub enum Accelerator {
     Kvm,
     Hvf,
@@ -20,9 +21,7 @@ impl Accelerator {
         if cfg!(target_os = "macos") {
             return Self::Hvf;
         }
-        if cfg!(target_os = "windows") {
-            return Self::Whpx;
-        }
+        // WHPX on Windows is unreliable — use TCG (software emulation) for now
         Self::Tcg
     }
 
@@ -81,6 +80,9 @@ pub struct QemuConfig {
     pub vsock_cid: Option<u64>,
     pub ssh_port_forward: Option<u16>,
     pub qmp_socket: PathBuf,
+    pub qemu_data_dir: Option<PathBuf>,
+    /// TCP port for QMP on Windows (dynamically allocated).
+    pub qmp_tcp_port: Option<u16>,
 }
 
 impl QemuConfig {
@@ -111,6 +113,8 @@ impl QemuConfig {
             vsock_cid: None,
             ssh_port_forward: None,
             qmp_socket: PathBuf::new(),
+            qemu_data_dir: None,
+            qmp_tcp_port: None,
         }
     }
 
@@ -118,14 +122,18 @@ impl QemuConfig {
     pub fn to_args(&self) -> Vec<String> {
         let mut args = Vec::new();
 
+        // Data directory (BIOS, VGA BIOS, keymaps, etc.)
+        if let Some(ref data_dir) = self.qemu_data_dir {
+            args.extend(["-L".into(), data_dir.display().to_string()]);
+        }
+
         // Accelerator
         args.extend(["-accel".into(), self.accel.as_arg().into()]);
 
-        // CPU
-        let cpu = if self.accel == Accelerator::Tcg {
-            "max"
-        } else {
-            "host"
+        // CPU — only KVM and HVF safely support -cpu host
+        let cpu = match self.accel {
+            Accelerator::Kvm | Accelerator::Hvf => "host",
+            _ => "max",
         };
         args.extend(["-cpu".into(), cpu.into()]);
         args.extend(["-smp".into(), self.vcpus.to_string()]);
@@ -150,8 +158,8 @@ impl QemuConfig {
             args.extend(["-display".into(), "none".into()]);
             args.extend(["-vga".into(), "none".into()]);
         } else {
-            args.extend(["-device".into(), "virtio-gpu-pci".into()]);
-            args.extend(["-display".into(), self.display.as_arg().into()]);
+            args.extend(["-device".into(), "virtio-gpu-gl-pci".into()]);
+            args.extend(["-display".into(), format!("{},gl=on", self.display.as_arg())]);
             args.extend(["-device".into(), "virtio-keyboard-pci".into()]);
             args.extend(["-device".into(), "virtio-mouse-pci".into()]);
         }
@@ -160,17 +168,17 @@ impl QemuConfig {
         args.extend(["-serial".into(), "stdio".into()]);
 
         // QMP socket for graceful shutdown
-        let qmp_path = self.qmp_socket.display().to_string();
         if cfg!(unix) {
+            let qmp_path = self.qmp_socket.display().to_string();
             args.extend([
                 "-qmp".into(),
                 format!("unix:{qmp_path},server,nowait"),
             ]);
-        } else {
-            // Windows: use TCP for QMP
+        } else if let Some(port) = self.qmp_tcp_port {
+            // Windows: use TCP with a dynamically allocated port
             args.extend([
                 "-qmp".into(),
-                "tcp:127.0.0.1:4444,server,nowait".into(),
+                format!("tcp:127.0.0.1:{port},server,nowait"),
             ]);
         }
 

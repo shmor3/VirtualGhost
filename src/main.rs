@@ -62,14 +62,25 @@ async fn cmd_run(cli: &Cli) -> anyhow::Result<()> {
         .clone()
         .unwrap_or_else(|| asset_manager.rootfs_path());
 
-    // Try to extract embedded assets if no custom paths provided
-    if config.vm.kernel_path.is_none() || config.vm.rootfs_path.is_none() {
-        if let Err(e) = asset_manager.ensure_assets() {
+    // Extract embedded assets (kernel, rootfs, QEMU) if not already cached
+    if let Err(e) = asset_manager.ensure_assets() {
+        let need_kernel = config.vm.kernel_path.is_none() && !asset_manager.kernel_path().exists();
+        let need_rootfs = config.vm.rootfs_path.is_none() && !asset_manager.rootfs_path().exists();
+        let need_qemu = config.vm.qemu_bin.is_none() && !asset_manager.qemu_bin_path().exists();
+
+        if need_kernel || need_rootfs {
             anyhow::bail!(
                 "No kernel/rootfs available: {e}\n\
                  Provide --kernel and --rootfs paths, or place assets in cache."
             );
         }
+        if need_qemu {
+            anyhow::bail!(
+                "No QEMU binary available: {e}\n\
+                 Set qemu_bin in config, or place QEMU files in assets/qemu/ and rebuild."
+            );
+        }
+        tracing::warn!("Non-critical asset extraction issue: {e}");
     }
 
     // GPU passthrough setup (Linux only)
@@ -106,7 +117,7 @@ async fn cmd_run(cli: &Cli) -> anyhow::Result<()> {
         .vm
         .qemu_bin
         .clone()
-        .unwrap_or_else(|| std::path::PathBuf::from("qemu-system-x86_64"));
+        .unwrap_or_else(|| asset_manager.qemu_bin_path());
 
     let qmp_socket = std::env::temp_dir().join(format!(
         "virtualghost-qmp-{}.sock",
@@ -120,7 +131,20 @@ async fn cmd_run(cli: &Cli) -> anyhow::Result<()> {
         &kernel_path.to_string_lossy(),
         &rootfs_path.to_string_lossy(),
     );
+    // If using embedded QEMU, point it to the extracted share/ directory
+    if config.vm.qemu_bin.is_none() {
+        qemu_config.qemu_data_dir = Some(asset_manager.qemu_data_dir());
+    }
     qemu_config.qmp_socket = qmp_socket;
+
+    // On Windows, find a free TCP port for QMP
+    #[cfg(not(unix))]
+    {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let port = listener.local_addr()?.port();
+        drop(listener);
+        qemu_config.qmp_tcp_port = Some(port);
+    }
     qemu_config.gpu_passthrough = gpu_pci_addresses;
 
     // Use vsock on Linux (direct host-guest channel), TCP port forwarding elsewhere

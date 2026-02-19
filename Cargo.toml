@@ -33,6 +33,7 @@ async-trait = "0.1"
 
 # Embedded assets
 zstd = "0.13"
+tar = "0.4"
 
 # Error handling
 thiserror = "2"
@@ -52,6 +53,7 @@ walkdir = "2"
 
 [build-dependencies]
 zstd = "0.13"
+tar = "0.4"
 
 [profile.release]
 lto = true
