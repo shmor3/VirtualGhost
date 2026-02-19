@@ -13,7 +13,7 @@ pub struct VmSettings {
     pub memory_mib: u32,
     pub kernel_path: Option<PathBuf>,
     pub rootfs_path: Option<PathBuf>,
-    pub cloud_hypervisor_bin: Option<PathBuf>,
+    pub qemu_bin: Option<PathBuf>,
     pub gpu_pci_address: Option<String>,
 }
 
@@ -56,7 +56,7 @@ impl Default for VirtualGhostConfig {
                 memory_mib: 2048,
                 kernel_path: None,
                 rootfs_path: None,
-                cloud_hypervisor_bin: None,
+                qemu_bin: None,
                 gpu_pci_address: None,
             },
             ssh: SshSettings {

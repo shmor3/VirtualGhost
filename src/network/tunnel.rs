@@ -1,25 +1,28 @@
-#![cfg(unix)]
+#![allow(dead_code)]
 
-use crate::error::{NetworkError, VirtualGhostError};
-use tokio::io::{AsyncRead, AsyncWrite, ReadHalf, WriteHalf};
-use tokio::net::UnixStream;
-use tracing::debug;
+use crate::error::VirtualGhostError;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpStream;
+use tracing::{debug, info};
 
-/// Bidirectional byte-stream tunnel over a vsock connection.
-/// Bridges the SSH client to the guest agent through the Firecracker vsock socket.
-pub struct VsockTunnel {
-    reader: ReadHalf<UnixStream>,
-    writer: WriteHalf<UnixStream>,
-}
+/// Connects to the guest agent via TCP (QEMU user-mode port forwarding).
+/// Used on macOS/Windows where vsock is not available.
+pub struct GuestTunnel;
 
-impl VsockTunnel {
-    pub fn new(stream: UnixStream) -> Self {
-        let (reader, writer) = tokio::io::split(stream);
-        Self { reader, writer }
-    }
+impl GuestTunnel {
+    /// Connect to the guest SSH server via TCP port forwarding.
+    pub async fn connect_tcp(port: u16) -> Result<TcpStream, VirtualGhostError> {
+        let addr = format!("127.0.0.1:{port}");
+        info!(%addr, "Connecting to guest via TCP");
 
-    pub fn split(self) -> (ReadHalf<UnixStream>, WriteHalf<UnixStream>) {
-        (self.reader, self.writer)
+        let stream = TcpStream::connect(&addr).await.map_err(|e| {
+            crate::error::NetworkError::VsockConnectionFailed(format!(
+                "failed to connect to guest at {addr}: {e}"
+            ))
+        })?;
+
+        info!(%addr, "TCP connection to guest established");
+        Ok(stream)
     }
 
     /// Copy data bidirectionally between two async streams until one side closes.

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(
     name = "virtualghost",
-    about = "Launch Ghostty in an isolated Cloud Hypervisor VM with GPU passthrough"
+    about = "Launch Ghostty in an isolated QEMU VM with GPU passthrough"
 )]
 pub struct Cli {
     #[command(subcommand)]

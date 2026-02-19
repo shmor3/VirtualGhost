@@ -73,86 +73,76 @@ async fn cmd_run(cli: &Cli) -> anyhow::Result<()> {
     }
 
     // GPU passthrough setup (Linux only)
+    #[allow(unused_mut)]
+    let mut gpu_pci_addresses: Vec<String> = Vec::new();
     #[cfg(unix)]
-    let gpu_devices = if let Some(ref pci_addr) = config.vm.gpu_pci_address {
+    if let Some(ref pci_addr) = config.vm.gpu_pci_address {
         tracing::info!(pci_addr, "Preparing GPU for VFIO passthrough");
         let gpu = vfio::discover_gpu(pci_addr)?;
         vfio::prepare_passthrough(&gpu)?;
-        gpu.to_device_configs()
-    } else {
-        Vec::new()
-    };
+        for device_config in gpu.to_device_configs() {
+            gpu_pci_addresses.push(device_config.path);
+        }
+    }
 
     #[cfg(not(unix))]
     if config.vm.gpu_pci_address.is_some() {
         anyhow::bail!("GPU passthrough requires Linux with KVM and IOMMU support");
     }
 
+    let accel = vm::Accelerator::detect();
     tracing::info!(
         kernel = %kernel_path.display(),
         rootfs = %rootfs_path.display(),
         vcpus = config.vm.vcpus,
         memory_mib = config.vm.memory_mib,
+        accel = ?accel,
         gpu = ?config.vm.gpu_pci_address,
         "Starting VirtualGhost"
     );
 
-    // Boot the VM (Linux only)
-    #[cfg(unix)]
-    {
-        use std::path::PathBuf;
+    // Build QEMU configuration
+    let qemu_bin = config
+        .vm
+        .qemu_bin
+        .clone()
+        .unwrap_or_else(|| std::path::PathBuf::from("qemu-system-x86_64"));
 
-        let ch_bin = config
-            .vm
-            .cloud_hypervisor_bin
-            .clone()
-            .unwrap_or_else(|| PathBuf::from("cloud-hypervisor"));
+    let qmp_socket = std::env::temp_dir().join(format!(
+        "virtualghost-qmp-{}.sock",
+        uuid::Uuid::new_v4()
+    ));
 
-        let socket_path = std::env::temp_dir().join(format!(
-            "virtualghost-{}.sock",
-            uuid::Uuid::new_v4()
-        ));
-        let vsock_path = std::env::temp_dir().join(format!(
-            "virtualghost-vsock-{}.sock",
-            uuid::Uuid::new_v4()
-        ));
+    let mut qemu_config = vm::QemuConfig::new(
+        qemu_bin,
+        config.vm.vcpus,
+        config.vm.memory_mib,
+        &kernel_path.to_string_lossy(),
+        &rootfs_path.to_string_lossy(),
+    );
+    qemu_config.qmp_socket = qmp_socket;
+    qemu_config.gpu_passthrough = gpu_pci_addresses;
 
-        // Spawn Cloud Hypervisor
-        let mut ch_process =
-            vm::CloudHypervisorProcess::spawn(&ch_bin, &socket_path).await?;
-        let client = vm::CloudHypervisorClient::new(&socket_path);
-
-        // Build VM configuration
-        let mut builder = vm::VmConfigBuilder::new(
-            config.vm.vcpus,
-            config.vm.memory_mib,
-            &kernel_path.to_string_lossy(),
-            &rootfs_path.to_string_lossy(),
-        )
-        .vsock(&vsock_path.to_string_lossy(), 3)
-        .serial_console();
-
-        // Add GPU devices if configured
-        for device in &gpu_devices {
-            builder = builder.add_vfio_device(&device.path);
-        }
-
-        // Create and boot VM
-        builder.apply(&client).await?;
-        tracing::info!("VM booted — Ghostty should appear on the GPU display");
-
-        // Wait for the VM process to exit (user closes Ghostty)
-        let status = ch_process.wait().await?;
-        tracing::info!(?status, "Cloud Hypervisor exited");
+    // Use vsock on Linux (direct host-guest channel), TCP port forwarding elsewhere
+    if cfg!(target_os = "linux") {
+        qemu_config.vsock_cid = Some(3);
+    } else {
+        qemu_config.ssh_port_forward = Some(2222);
     }
 
-    #[cfg(not(unix))]
-    anyhow::bail!(
-        "VM launch requires Linux with KVM support. \
-         VirtualGhost runs on macOS/Windows for configuration only."
-    );
+    // GPU passthrough: no virtual display, Cage uses the physical GPU
+    if !qemu_config.gpu_passthrough.is_empty() {
+        qemu_config.display = vm::DisplayMode::None;
+    }
 
-    #[cfg(unix)]
+    // Spawn QEMU
+    let mut qemu_process = vm::QemuProcess::spawn(&qemu_config).await?;
+    tracing::info!("QEMU running — Ghostty should appear shortly");
+
+    // Wait for the VM process to exit (user closes Ghostty)
+    let status = qemu_process.wait().await?;
+    tracing::info!(?status, "QEMU exited");
+
     Ok(())
 }
 

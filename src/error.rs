@@ -21,19 +21,19 @@ pub enum VirtualGhostError {
 #[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum VmError {
-    #[error("failed to spawn cloud-hypervisor process: {0}")]
+    #[error("failed to spawn QEMU process: {0}")]
     SpawnFailed(std::io::Error),
-
-    #[error("cloud-hypervisor API error: {status} {body}")]
-    ApiError { status: u16, body: String },
 
     #[error("VM boot timed out")]
     BootTimeout,
 
+    #[error("QMP error: {0}")]
+    QmpError(String),
+
     #[error("asset extraction failed: {0}")]
     AssetExtraction(String),
 
-    #[error("cloud-hypervisor process exited unexpectedly: code {0:?}")]
+    #[error("QEMU process exited unexpectedly: code {0:?}")]
     ProcessExited(Option<i32>),
 
     #[error("VFIO setup failed: {0}")]

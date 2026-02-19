@@ -1,84 +1,61 @@
-#![cfg(unix)]
+#![allow(dead_code)]
 
 use crate::error::{VmError, VirtualGhostError};
-use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::process::ExitStatus;
 use tokio::process::{Child, Command};
-use tracing::{info, warn};
+use tracing::info;
 
-pub struct CloudHypervisorProcess {
+use super::config::QemuConfig;
+
+pub struct QemuProcess {
     child: Child,
-    socket_path: PathBuf,
 }
 
-impl CloudHypervisorProcess {
-    pub async fn spawn(
-        ch_bin: &Path,
-        socket_path: &Path,
-    ) -> Result<Self, VirtualGhostError> {
-        if socket_path.exists() {
-            std::fs::remove_file(socket_path).ok();
-        }
+impl QemuProcess {
+    /// Spawn QEMU with the given configuration.
+    pub async fn spawn(config: &QemuConfig) -> Result<Self, VirtualGhostError> {
+        let args = config.to_args();
 
         info!(
-            bin = %ch_bin.display(),
-            socket = %socket_path.display(),
-            "Spawning Cloud Hypervisor process"
+            bin = %config.qemu_bin.display(),
+            args = ?args,
+            "Spawning QEMU"
         );
 
-        let child = Command::new(ch_bin)
-            .arg("--api-socket")
-            .arg(format!("path={}", socket_path.display()))
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+        let child = Command::new(&config.qemu_bin)
+            .args(&args)
+            .stdin(std::process::Stdio::null())
             .spawn()
             .map_err(VmError::SpawnFailed)?;
 
-        // Wait for the API socket to appear
-        for _ in 0..50 {
-            if socket_path.exists() {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        }
+        info!(pid = child.id(), "QEMU process started");
 
-        if !socket_path.exists() {
-            return Err(VmError::BootTimeout.into());
-        }
-
-        info!("Cloud Hypervisor process started, API socket ready");
-
-        Ok(Self {
-            child,
-            socket_path: socket_path.to_path_buf(),
-        })
+        Ok(Self { child })
     }
 
-    pub fn id(&self) -> Option<u32> {
-        self.child.id()
+    /// Wait for the QEMU process to exit.
+    pub async fn wait(&mut self) -> Result<ExitStatus, VirtualGhostError> {
+        let status = self
+            .child
+            .wait()
+            .await
+            .map_err(VmError::SpawnFailed)?;
+        Ok(status)
     }
 
-    pub async fn wait(&mut self) -> Result<std::process::ExitStatus, VirtualGhostError> {
-        self.child.wait().await.map_err(VirtualGhostError::Io)
-    }
-
+    /// Kill the QEMU process.
     pub async fn kill(&mut self) -> Result<(), VirtualGhostError> {
-        warn!("Killing Cloud Hypervisor process");
-        self.child.kill().await.map_err(VirtualGhostError::Io)?;
-        self.cleanup();
+        self.child
+            .kill()
+            .await
+            .map_err(VmError::SpawnFailed)?;
         Ok(())
-    }
-
-    fn cleanup(&self) {
-        if self.socket_path.exists() {
-            std::fs::remove_file(&self.socket_path).ok();
-        }
     }
 }
 
-impl Drop for CloudHypervisorProcess {
+impl Drop for QemuProcess {
     fn drop(&mut self) {
-        self.cleanup();
+        // Best-effort kill on drop
+        let _ = self.child.start_kill();
     }
 }
