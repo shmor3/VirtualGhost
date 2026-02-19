@@ -18,11 +18,7 @@ echo "--- pacstrap: installing base packages ---"
 pacstrap -c -G -M "$ROOTFS_DIR" \
     base \
     systemd \
-    linux-firmware \
     mesa \
-    vulkan-icd-loader \
-    vulkan-radeon \
-    vulkan-intel \
     cage \
     ghostty \
     dbus \
@@ -89,54 +85,179 @@ ln -sf /usr/lib/systemd/system/serial-getty@.service \
 chroot "$ROOTFS_DIR" useradd -m -s /bin/bash -G video,input ghostty 2>/dev/null || true
 
 # -------------------------------------------------------
-# Step 5: Size optimizations
+# Step 5: Aggressive size optimizations
 # -------------------------------------------------------
 echo "--- Optimizing rootfs size ---"
+echo "Before optimization: $(du -sh "$ROOTFS_DIR" | cut -f1)"
 
-# Remove package cache
+# --- Package cache ---
 rm -rf "$ROOTFS_DIR/var/cache/pacman/pkg"/*
+rm -rf "$ROOTFS_DIR/var/lib/pacman/sync"
 
-# Remove docs, man pages, locale data
+# --- Documentation and locale ---
 rm -rf "$ROOTFS_DIR/usr/share/doc"
 rm -rf "$ROOTFS_DIR/usr/share/man"
 rm -rf "$ROOTFS_DIR/usr/share/info"
 rm -rf "$ROOTFS_DIR/usr/share/locale"
+rm -rf "$ROOTFS_DIR/usr/share/i18n"
+rm -rf "$ROOTFS_DIR/usr/share/licenses"
+rm -rf "$ROOTFS_DIR/usr/share/zsh"
+rm -rf "$ROOTFS_DIR/usr/share/bash-completion"
 
-# Remove non-GPU firmware (WiFi, Bluetooth, etc.)
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/intel"
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/mediatek"
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/realtek"
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/iwlwifi"*
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/ath"*
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/brcm"
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/ti-connectivity"
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/qcom"
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/cypress"
-rm -rf "$ROOTFS_DIR/usr/lib/firmware/mrvl"
+# --- Firmware (VM uses virtio, no physical hardware) ---
+rm -rf "$ROOTFS_DIR/usr/lib/firmware"
 
-# Remove ldconfig cache
+# --- LLVM (150 MB! — only needed for llvmpipe/radeonsi shader compilation, not virgl) ---
+rm -f "$ROOTFS_DIR/usr/lib/libLLVM"*.so*
+
+# --- Vulkan (virgl only supports OpenGL, not Vulkan) ---
+rm -rf "$ROOTFS_DIR/usr/share/vulkan"
+rm -rf "$ROOTFS_DIR/usr/lib/libvulkan"*
+rm -rf "$ROOTFS_DIR/usr/lib/libVk"*
+rm -rf "$ROOTFS_DIR/usr/lib/libSPIRV"*
+rm -rf "$ROOTFS_DIR/usr/lib/libspirv-cross"*
+
+# --- Unused mesa DRI drivers (keep only virtio_gpu, swrast, kms_swrast, libdril, zink) ---
+find "$ROOTFS_DIR/usr/lib/dri/" -type f \
+    ! -name 'virtio_gpu_dri.so' \
+    ! -name 'virtio_gpu_drv_video.so' \
+    ! -name 'swrast_dri.so' \
+    ! -name 'kms_swrast_dri.so' \
+    ! -name 'libdril_dri.so' \
+    ! -name 'zink_dri.so' \
+    -delete 2>/dev/null || true
+
+# --- Unused kernel modules (keep only virtio, drm, gpu) ---
+if [ -d "$ROOTFS_DIR/usr/lib/modules" ]; then
+    find "$ROOTFS_DIR/usr/lib/modules" -type f -name '*.ko*' \
+        ! -path '*/virtio*' \
+        ! -path '*/drm*' \
+        ! -path '*/gpu*' \
+        -delete 2>/dev/null || true
+fi
+
+# --- Dev-only files (headers, pkgconfig, static libs, GObject introspection) ---
+rm -rf "$ROOTFS_DIR/usr/include"
+rm -rf "$ROOTFS_DIR/usr/lib/pkgconfig"
+rm -rf "$ROOTFS_DIR/usr/lib/"*.a
+rm -rf "$ROOTFS_DIR/usr/share/gir-1.0"
+rm -rf "$ROOTFS_DIR/usr/lib/girepository-1.0"
+
+# --- Debug/profiling libraries (not needed at runtime) ---
+rm -f "$ROOTFS_DIR/usr/lib/libasan"*.so*
+rm -f "$ROOTFS_DIR/usr/lib/liblsan"*.so*
+rm -f "$ROOTFS_DIR/usr/lib/libtsan"*.so*
+rm -f "$ROOTFS_DIR/usr/lib/libubsan"*.so*
+rm -f "$ROOTFS_DIR/usr/lib/libgfortran"*.so*
+rm -f "$ROOTFS_DIR/usr/lib/libgprofng"*.so*
+rm -f "$ROOTFS_DIR/usr/lib/libobjc"*.so*
+
+# --- Build tools (not needed at runtime) ---
+rm -f "$ROOTFS_DIR/usr/bin/xgettext"
+rm -f "$ROOTFS_DIR/usr/bin/msgfmt"
+rm -f "$ROOTFS_DIR/usr/bin/msgmerge"
+rm -f "$ROOTFS_DIR/usr/bin/msginit"
+rm -f "$ROOTFS_DIR/usr/bin/msgcat"
+rm -f "$ROOTFS_DIR/usr/bin/msgconv"
+rm -f "$ROOTFS_DIR/usr/bin/msgfilter"
+rm -f "$ROOTFS_DIR/usr/bin/msggrep"
+rm -f "$ROOTFS_DIR/usr/bin/msgunfmt"
+rm -f "$ROOTFS_DIR/usr/bin/msguniq"
+rm -f "$ROOTFS_DIR/usr/bin/msgattrib"
+rm -f "$ROOTFS_DIR/usr/bin/msgcmp"
+rm -f "$ROOTFS_DIR/usr/bin/msgcomm"
+rm -f "$ROOTFS_DIR/usr/bin/msgexec"
+rm -f "$ROOTFS_DIR/usr/bin/recode-sr-latin"
+rm -f "$ROOTFS_DIR/usr/bin/gtk4-encode-symbolic-svg"
+rm -f "$ROOTFS_DIR/usr/bin/gtk4-builder-tool"
+rm -f "$ROOTFS_DIR/usr/bin/rsvg-convert"
+rm -f "$ROOTFS_DIR/usr/bin/glycin-thumbnailer"
+rm -f "$ROOTFS_DIR/usr/bin/sqlite3"
+rm -f "$ROOTFS_DIR/usr/bin/ld" "$ROOTFS_DIR/usr/bin/ld.bfd" "$ROOTFS_DIR/usr/bin/ld.gold"
+rm -f "$ROOTFS_DIR/usr/bin/as" "$ROOTFS_DIR/usr/bin/ar" "$ROOTFS_DIR/usr/bin/ranlib"
+rm -f "$ROOTFS_DIR/usr/bin/nm" "$ROOTFS_DIR/usr/bin/objcopy" "$ROOTFS_DIR/usr/bin/objdump"
+rm -f "$ROOTFS_DIR/usr/bin/strip" "$ROOTFS_DIR/usr/bin/readelf" "$ROOTFS_DIR/usr/bin/strings"
+rm -f "$ROOTFS_DIR/usr/bin/size" "$ROOTFS_DIR/usr/bin/addr2line" "$ROOTFS_DIR/usr/bin/c++filt"
+rm -f "$ROOTFS_DIR/usr/bin/elfedit" "$ROOTFS_DIR/usr/bin/gprof"
+rm -rf "$ROOTFS_DIR/usr/lib/ldscripts"
+
+# --- Multimedia frameworks (not needed for terminal emulator) ---
+rm -rf "$ROOTFS_DIR/usr/lib/gstreamer-1.0"
+rm -f "$ROOTFS_DIR/usr/lib/libgst"*.so*
+rm -rf "$ROOTFS_DIR/usr/lib/glycin-loaders"
+rm -f "$ROOTFS_DIR/usr/lib/libglycin"*.so*
+
+# --- Large data files not needed in VM ---
+rm -rf "$ROOTFS_DIR/usr/share/hwdata"
+rm -rf "$ROOTFS_DIR/usr/share/file"
+rm -rf "$ROOTFS_DIR/usr/share/libwacom"
+rm -rf "$ROOTFS_DIR/usr/share/kbd"
+rm -rf "$ROOTFS_DIR/usr/share/mime"
+rm -rf "$ROOTFS_DIR/usr/share/model"
+rm -rf "$ROOTFS_DIR/usr/share/ghostty/terminfo"
+rm -rf "$ROOTFS_DIR/usr/share/terminfo"/[!x]*
+rm -rf "$ROOTFS_DIR/usr/share/appstream"
+
+# --- ICU data (32 MB — strip to minimal) ---
+# Keep the main ICU library but remove the huge data file if possible
+# Ghostty only needs basic UTF-8 support which glibc provides
+rm -f "$ROOTFS_DIR/usr/lib/libicudata"*.so* 2>/dev/null || true
+rm -f "$ROOTFS_DIR/usr/lib/libicui18n"*.so* 2>/dev/null || true
+rm -f "$ROOTFS_DIR/usr/lib/libicuuc"*.so* 2>/dev/null || true
+rm -f "$ROOTFS_DIR/usr/lib/libicuio"*.so* 2>/dev/null || true
+
+# --- gconv modules (glibc charset converters — keep only UTF-8 related) ---
+if [ -d "$ROOTFS_DIR/usr/lib/gconv" ]; then
+    find "$ROOTFS_DIR/usr/lib/gconv/" -type f -name '*.so' \
+        ! -name 'UTF*' ! -name 'UNICODE*' ! -name 'ISO8859*' \
+        -delete 2>/dev/null || true
+fi
+
+# --- Trim icon themes (keep only essential Adwaita icons) ---
+rm -rf "$ROOTFS_DIR/usr/share/icons/hicolor"
+find "$ROOTFS_DIR/usr/share/icons/" -name '*.svg' -delete 2>/dev/null || true
+
+# --- Timezone data (keep only UTC and basic POSIX) ---
+if [ -d "$ROOTFS_DIR/usr/share/zoneinfo" ]; then
+    find "$ROOTFS_DIR/usr/share/zoneinfo" -type f \
+        ! -name 'UTC' ! -name 'UCT' ! -name 'GMT' \
+        ! -path '*/posix/*' ! -path '*/Etc/*' \
+        -delete 2>/dev/null || true
+    rm -rf "$ROOTFS_DIR/usr/share/zoneinfo-posix"
+fi
+
+# --- Trim udev (remove hardware database, keep essential rules) ---
+rm -rf "$ROOTFS_DIR/usr/lib/udev/hwdb.d"
+rm -f "$ROOTFS_DIR/usr/lib/udev/hwdb.bin"
+
+# --- Remove ldconfig and systemd caches ---
 rm -f "$ROOTFS_DIR/etc/ld.so.cache"
+rm -rf "$ROOTFS_DIR/usr/lib/systemd/catalog"
 
-echo "Rootfs tree size: $(du -sh "$ROOTFS_DIR" | cut -f1)"
+# --- Strip ELF binaries ---
+find "$ROOTFS_DIR/usr/bin" "$ROOTFS_DIR/usr/lib" -type f \
+    \( -name '*.so*' -o -executable \) \
+    -exec strip --strip-unneeded {} \; 2>/dev/null || true
+
+echo "After optimization: $(du -sh "$ROOTFS_DIR" | cut -f1)"
 
 # -------------------------------------------------------
 # Step 6: Create ext4 image
 # -------------------------------------------------------
 echo "--- Creating ext4 image ---"
 
-# Calculate required size (usage + 20% headroom, minimum 512 MB)
+# Calculate required size (usage + 40% headroom for ext4 metadata/journal/inodes)
+# resize2fs -M at the end will shrink back to minimum
 USAGE_KB=$(du -sk "$ROOTFS_DIR" | cut -f1)
-REQUIRED_KB=$(( USAGE_KB * 120 / 100 ))
-if [[ $REQUIRED_KB -lt 524288 ]]; then
-    REQUIRED_KB=524288
-fi
+REQUIRED_KB=$(( USAGE_KB * 140 / 100 ))
 
 # Round up to nearest 4 MB boundary
 REQUIRED_KB=$(( (REQUIRED_KB + 4095) / 4096 * 4096 ))
 echo "Image size: $(( REQUIRED_KB / 1024 )) MB"
 
 dd if=/dev/zero of="$OUTPUT_PATH" bs=1024 count="$REQUIRED_KB" status=progress
-mkfs.ext4 -F -L virtualghost -b 4096 "$OUTPUT_PATH"
+# Use 1024-byte inodes, disable reserved blocks (not needed for VM rootfs)
+mkfs.ext4 -F -L virtualghost -b 4096 -I 256 -m 0 "$OUTPUT_PATH"
 mount -o loop "$OUTPUT_PATH" "$MOUNT_DIR"
 
 # Copy rootfs content into the image

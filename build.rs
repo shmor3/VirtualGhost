@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::Write;
+use std::io::{self, BufReader, Write};
 use std::path::Path;
 
 fn main() {
@@ -10,24 +10,28 @@ fn main() {
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
 
-    compress_asset("assets/vmlinux", "vmlinux.zst", "has_embedded_kernel", &out_dir);
-    compress_asset(
+    // Kernel is small (~16 MB) — use max compression
+    compress_asset("assets/vmlinux", "vmlinux.zst", "has_embedded_kernel", 22, &out_dir);
+    // Rootfs is large (~1 GB+) — stream-compress at level 19 to keep build times sane
+    stream_compress_asset(
         "assets/rootfs.ext4",
         "rootfs.ext4.zst",
         "has_embedded_rootfs",
+        19,
         &out_dir,
     );
     compress_qemu_bundle(&out_dir);
 }
 
-fn compress_asset(src: &str, dst_name: &str, cfg_flag: &str, out_dir: &str) {
+/// Read-all + compress for small assets (kernel). Loads entire file into memory.
+fn compress_asset(src: &str, dst_name: &str, cfg_flag: &str, level: i32, out_dir: &str) {
     let src_path = Path::new(src);
     if !src_path.exists() {
         return;
     }
 
     let data = fs::read(src_path).unwrap_or_else(|e| panic!("failed to read {src}: {e}"));
-    let compressed = zstd::encode_all(data.as_slice(), 19)
+    let compressed = zstd::encode_all(data.as_slice(), level)
         .unwrap_or_else(|e| panic!("failed to compress {src}: {e}"));
 
     let dst_path = Path::new(out_dir).join(dst_name);
@@ -41,6 +45,45 @@ fn compress_asset(src: &str, dst_name: &str, cfg_flag: &str, out_dir: &str) {
         "cargo:warning=Embedded {src} ({} bytes → {} bytes compressed)",
         data.len(),
         compressed.len()
+    );
+}
+
+/// Stream-compress for large assets (rootfs). Avoids loading the full file into memory.
+fn stream_compress_asset(src: &str, dst_name: &str, cfg_flag: &str, level: i32, out_dir: &str) {
+    let src_path = Path::new(src);
+    if !src_path.exists() {
+        return;
+    }
+
+    let src_len = fs::metadata(src_path)
+        .unwrap_or_else(|e| panic!("failed to stat {src}: {e}"))
+        .len();
+
+    let mut reader = BufReader::with_capacity(
+        1024 * 1024, // 1 MB read buffer
+        fs::File::open(src_path).unwrap_or_else(|e| panic!("failed to open {src}: {e}")),
+    );
+
+    let dst_path = Path::new(out_dir).join(dst_name);
+    let writer =
+        fs::File::create(&dst_path).unwrap_or_else(|e| panic!("failed to create {dst_name}: {e}"));
+
+    let mut encoder = zstd::Encoder::new(writer, level)
+        .unwrap_or_else(|e| panic!("failed to init zstd encoder for {src}: {e}"));
+
+    io::copy(&mut reader, &mut encoder)
+        .unwrap_or_else(|e| panic!("failed to stream-compress {src}: {e}"));
+    let writer = encoder
+        .finish()
+        .unwrap_or_else(|e| panic!("failed to finalize compression for {src}: {e}"));
+    let compressed_len = writer
+        .metadata()
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    println!("cargo:rustc-cfg={cfg_flag}");
+    println!(
+        "cargo:warning=Embedded {src} ({src_len} bytes → {compressed_len} bytes compressed)",
     );
 }
 
@@ -62,8 +105,8 @@ fn compress_qemu_bundle(out_dir: &str) {
             .unwrap_or_else(|e| panic!("failed to finalize qemu tar: {e}"));
     }
 
-    // Compress with zstd
-    let compressed = zstd::encode_all(tar_data.as_slice(), 19)
+    // Compress with zstd (ultra mode for best ratio)
+    let compressed = zstd::encode_all(tar_data.as_slice(), 22)
         .unwrap_or_else(|e| panic!("failed to compress qemu bundle: {e}"));
 
     let dst_path = Path::new(out_dir).join("qemu-bundle.tar.zst");

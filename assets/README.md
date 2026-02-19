@@ -31,8 +31,10 @@ The Docker build creates an Arch Linux container, cross-compiles the guest agent
 cargo build --release
 ```
 
-`build.rs` detects the assets, compresses them with zstd (level 19), and embeds them via `include_bytes!()`. At runtime, the binary extracts them to a platform-specific cache directory on first launch.
+`build.rs` detects the assets, compresses them with zstd, and embeds them via `include_bytes!()`. At runtime, the binary stream-decompresses them to a platform-specific cache directory on first launch.
 
-- Kernel: ~16 MB raw, ~15 MB compressed
-- Rootfs: ~1.4 GB raw, ~420 MB compressed
-- QEMU: ~140 MB tar, ~42 MB compressed
+- Kernel: ~16 MB raw → ~16 MB compressed (zstd level 22)
+- Rootfs: ~544 MB raw → ~111 MB compressed (zstd level 19, streaming)
+- QEMU: ~142 MB tar → ~40 MB compressed (zstd level 22)
+
+The rootfs is aggressively stripped during build: firmware, unused mesa/Vulkan drivers, unused kernel modules, docs, man pages, and static libraries are all removed since the VM only needs virtio drivers.

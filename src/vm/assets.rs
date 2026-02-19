@@ -71,20 +71,38 @@ impl AssetManager {
         Ok(())
     }
 
+    /// Stream-decompress an embedded zstd blob directly to a file.
+    /// Avoids loading the full decompressed data into memory.
+    fn stream_decompress_to_file(
+        compressed: &[u8],
+        dest: &std::path::Path,
+        label: &str,
+    ) -> Result<u64, VirtualGhostError> {
+        use std::io::{self, Cursor};
+
+        let reader = Cursor::new(compressed);
+        let mut decoder = zstd::Decoder::new(reader).map_err(|e| {
+            VmError::AssetExtraction(format!("failed to init {label} decompressor: {e}"))
+        })?;
+
+        let mut file = std::fs::File::create(dest).map_err(|e| {
+            VmError::AssetExtraction(format!("failed to create {label} file: {e}"))
+        })?;
+
+        let bytes_written = io::copy(&mut decoder, &mut file).map_err(|e| {
+            VmError::AssetExtraction(format!("failed to decompress {label}: {e}"))
+        })?;
+
+        Ok(bytes_written)
+    }
+
     fn extract_kernel(&self) -> Result<(), VirtualGhostError> {
         #[cfg(has_embedded_kernel)]
         {
-            let decompressed = zstd::decode_all(EMBEDDED_KERNEL).map_err(|e| {
-                VmError::AssetExtraction(format!("failed to decompress kernel: {e}"))
-            })?;
-            std::fs::write(self.kernel_path(), &decompressed).map_err(|e| {
-                VmError::AssetExtraction(format!("failed to write kernel: {e}"))
-            })?;
-            info!(
-                path = %self.kernel_path().display(),
-                size = decompressed.len(),
-                "Kernel extracted"
-            );
+            let path = self.kernel_path();
+            let size =
+                Self::stream_decompress_to_file(EMBEDDED_KERNEL, &path, "kernel")?;
+            info!(path = %path.display(), size, "Kernel extracted");
             return Ok(());
         }
 
@@ -99,17 +117,10 @@ impl AssetManager {
     fn extract_rootfs(&self) -> Result<(), VirtualGhostError> {
         #[cfg(has_embedded_rootfs)]
         {
-            let decompressed = zstd::decode_all(EMBEDDED_ROOTFS).map_err(|e| {
-                VmError::AssetExtraction(format!("failed to decompress rootfs: {e}"))
-            })?;
-            std::fs::write(self.rootfs_path(), &decompressed).map_err(|e| {
-                VmError::AssetExtraction(format!("failed to write rootfs: {e}"))
-            })?;
-            info!(
-                path = %self.rootfs_path().display(),
-                size = decompressed.len(),
-                "Rootfs extracted"
-            );
+            let path = self.rootfs_path();
+            let size =
+                Self::stream_decompress_to_file(EMBEDDED_ROOTFS, &path, "rootfs")?;
+            info!(path = %path.display(), size, "Rootfs extracted");
             return Ok(());
         }
 
@@ -131,22 +142,14 @@ impl AssetManager {
                 VmError::AssetExtraction(format!("failed to create qemu dir: {e}"))
             })?;
 
-            // Decompress zstd
-            let tar_data = zstd::decode_all(EMBEDDED_QEMU).map_err(|e| {
-                VmError::AssetExtraction(format!("failed to decompress QEMU bundle: {e}"))
+            // Stream: zstd decompress → tar unpack (no intermediate buffer)
+            let cursor = Cursor::new(EMBEDDED_QEMU);
+            let decoder = zstd::Decoder::new(cursor).map_err(|e| {
+                VmError::AssetExtraction(format!("failed to init QEMU decompressor: {e}"))
             })?;
-
-            info!(
-                compressed_size = EMBEDDED_QEMU.len(),
-                decompressed_size = tar_data.len(),
-                "QEMU bundle decompressed"
-            );
-
-            // Untar
-            let cursor = Cursor::new(tar_data);
-            let mut archive = tar::Archive::new(cursor);
+            let mut archive = tar::Archive::new(decoder);
             archive.unpack(&qemu_dir).map_err(|e| {
-                VmError::AssetExtraction(format!("failed to extract QEMU tar: {e}"))
+                VmError::AssetExtraction(format!("failed to extract QEMU bundle: {e}"))
             })?;
 
             // Set executable permissions on Unix
