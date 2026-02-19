@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use crate::error::{VmError, VirtualGhostError};
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};

@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use crate::config::VmConfig;
 use crate::error::VirtualGhostError;
 

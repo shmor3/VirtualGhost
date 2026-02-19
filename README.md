@@ -2,11 +2,19 @@
 
 Isolated terminal sessions in Firecracker microVMs. A single binary that boots a lightweight VM, connects over vsock+SSH, and presents **Ghostly Term** — a terminal UI powered by ratatui.
 
+## Platform Support
+
+| Platform | Host binary | VM launch | Guest agent |
+|----------|------------|-----------|-------------|
+| Linux    | Yes        | Yes (requires KVM) | Yes (build target) |
+| macOS    | Yes        | No        | No          |
+| Windows  | Yes        | No        | No          |
+
+The terminal UI and configuration work on all platforms. VM launch requires Linux with KVM and the [Firecracker binary](https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md). On non-Linux platforms, the app runs in standalone terminal mode.
+
 ## Requirements
 
 - Rust 1.75+
-- Linux with KVM support (for running VMs)
-- Firecracker binary ([install guide](https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md))
 
 ## Build
 

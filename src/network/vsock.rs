@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use crate::error::{NetworkError, VirtualGhostError};
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

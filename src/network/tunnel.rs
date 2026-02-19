@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use crate::error::{NetworkError, VirtualGhostError};
 use tokio::io::{AsyncRead, AsyncWrite, ReadHalf, WriteHalf};
 use tokio::net::UnixStream;

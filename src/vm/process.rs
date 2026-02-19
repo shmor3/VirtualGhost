@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use crate::error::{VmError, VirtualGhostError};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
