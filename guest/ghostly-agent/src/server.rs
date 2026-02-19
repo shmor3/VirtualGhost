@@ -5,7 +5,7 @@ use russh::server::{self, Auth, Msg, Session};
 use russh::{Channel, ChannelId};
 use ssh_key::public::PublicKey;
 use std::collections::HashMap;
-use tracing::{info, warn};
+use tracing::info;
 
 pub async fn run(port: u32) -> Result<()> {
     info!(port, "SSH server ready (vsock listener not yet implemented)");

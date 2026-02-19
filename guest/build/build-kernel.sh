@@ -6,14 +6,20 @@ set -euo pipefail
 
 OUTPUT_PATH="${1:?Usage: build-kernel.sh <output-path>}"
 
-WORKDIR=$(mktemp -d)
+WORKDIR=$(mktemp -d /tmp/kernel-build.XXXXXX)
 trap "rm -rf $WORKDIR" EXIT
 
 echo "Downloading Arch Linux kernel package..."
-pacman -Sw --noconfirm --cachedir "$WORKDIR" linux
+# Download to system cache (has proper permissions), then extract from there
+pacman -Sw --noconfirm linux
 
-# Extract the bzImage from the package
-KERNEL_PKG=$(ls "$WORKDIR"/linux-*.pkg.tar.zst | head -1)
+# Find the downloaded package in the system cache
+KERNEL_PKG=$(find /var/cache/pacman/pkg -name 'linux-[0-9]*.pkg.tar.zst' -type f | sort -V | tail -1)
+if [[ -z "$KERNEL_PKG" ]]; then
+    echo "ERROR: kernel package not found in pacman cache" >&2
+    exit 1
+fi
+
 echo "Extracting kernel from: $(basename "$KERNEL_PKG")"
 mkdir -p "$WORKDIR/extract"
 bsdtar -xf "$KERNEL_PKG" -C "$WORKDIR/extract" 'usr/lib/modules/*/vmlinuz'
@@ -26,5 +32,4 @@ if [[ -z "$VMLINUZ" ]]; then
 fi
 
 cp "$VMLINUZ" "$OUTPUT_PATH"
-KERNEL_SIZE=$(stat -c%s "$OUTPUT_PATH" 2>/dev/null || stat -f%z "$OUTPUT_PATH")
-echo "Kernel extracted: $(ls -lh "$OUTPUT_PATH") ($KERNEL_SIZE bytes)"
+echo "Kernel extracted: $(ls -lh "$OUTPUT_PATH")"

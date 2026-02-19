@@ -18,8 +18,8 @@ async fn main() -> Result<()> {
     server::run(VSOCK_PORT).await?;
 
     #[cfg(not(unix))]
-    {
-        tracing::error!("Ghostly Agent only runs on Linux (inside a Firecracker VM)");
-        std::process::exit(1);
-    }
+    anyhow::bail!("Ghostly Agent only runs on Linux (inside the VirtualGhost VM)");
+
+    #[cfg(unix)]
+    Ok(())
 }

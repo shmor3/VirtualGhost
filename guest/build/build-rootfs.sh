@@ -3,7 +3,7 @@ set -euo pipefail
 
 OUTPUT_PATH="${1:?Usage: build-rootfs.sh <output-path> <agent-binary>}"
 AGENT_BIN="${2:?Usage: build-rootfs.sh <output-path> <agent-binary>}"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="/opt/builder"
 
 ROOTFS_DIR=$(mktemp -d)
 MOUNT_DIR=$(mktemp -d)
