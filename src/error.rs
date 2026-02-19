@@ -18,6 +18,7 @@ pub enum VirtualGhostError {
     Io(#[from] std::io::Error),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum VmError {
     #[error("failed to spawn cloud-hypervisor process: {0}")]
@@ -42,6 +43,7 @@ pub enum VmError {
     GpuNotFound(String),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum SshError {
     #[error("SSH connection failed: {0}")]
@@ -57,6 +59,7 @@ pub enum SshError {
     KeyGeneration(String),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum NetworkError {
     #[error("vsock connection failed: {0}")]
@@ -66,6 +69,7 @@ pub enum NetworkError {
     TunnelError(String),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum ConfigError {
     #[error("invalid configuration: {0}")]

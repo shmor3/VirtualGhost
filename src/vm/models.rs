@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 
 /// Top-level VM configuration sent to PUT /api/v1/vm.create

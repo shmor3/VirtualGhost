@@ -1,11 +1,11 @@
 use crate::error::{SshError, VirtualGhostError};
 use russh::*;
-use ssh_key::public::PublicKey;
 use ssh_key::private::PrivateKey;
+use ssh_key::public::PublicKey;
 use std::sync::Arc;
 use tracing::info;
 
-struct ClientHandler;
+pub(crate) struct ClientHandler;
 
 #[async_trait::async_trait]
 impl client::Handler for ClientHandler {
@@ -27,7 +27,11 @@ pub struct SshClient {
 impl SshClient {
     /// Connect to the guest SSH server over an already-established stream.
     /// The stream is typically a vsock Unix socket connection.
-    pub async fn connect<S>(stream: S, user: &str, key: &PrivateKey) -> Result<Self, VirtualGhostError>
+    pub async fn connect<S>(
+        stream: S,
+        user: &str,
+        key: &PrivateKey,
+    ) -> Result<Self, VirtualGhostError>
     where
         S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
     {
