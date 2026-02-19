@@ -3,6 +3,12 @@ use crate::error::{VmError, VirtualGhostError};
 use std::path::PathBuf;
 use tracing::info;
 
+#[cfg(has_embedded_kernel)]
+static EMBEDDED_KERNEL: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/vmlinux.zst"));
+
+#[cfg(has_embedded_rootfs)]
+static EMBEDDED_ROOTFS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rootfs.ext4.zst"));
+
 pub struct AssetManager {
     cache_dir: PathBuf,
 }
@@ -41,18 +47,51 @@ impl AssetManager {
     }
 
     fn extract_kernel(&self) -> Result<(), VirtualGhostError> {
-        // TODO: Decompress embedded kernel from include_bytes!()
-        // For now, check if a kernel exists in the assets directory
+        #[cfg(has_embedded_kernel)]
+        {
+            let decompressed = zstd::decode_all(EMBEDDED_KERNEL).map_err(|e| {
+                VmError::AssetExtraction(format!("failed to decompress kernel: {e}"))
+            })?;
+            std::fs::write(self.kernel_path(), &decompressed).map_err(|e| {
+                VmError::AssetExtraction(format!("failed to write kernel: {e}"))
+            })?;
+            info!(
+                path = %self.kernel_path().display(),
+                size = decompressed.len(),
+                "Kernel extracted"
+            );
+            return Ok(());
+        }
+
+        #[cfg(not(has_embedded_kernel))]
         Err(VmError::AssetExtraction(
-            "embedded kernel not yet available — provide --kernel path".to_string(),
+            "no embedded kernel — provide --kernel path or place vmlinux in assets/ and rebuild"
+                .to_string(),
         )
         .into())
     }
 
     fn extract_rootfs(&self) -> Result<(), VirtualGhostError> {
-        // TODO: Decompress embedded rootfs from include_bytes!()
+        #[cfg(has_embedded_rootfs)]
+        {
+            let decompressed = zstd::decode_all(EMBEDDED_ROOTFS).map_err(|e| {
+                VmError::AssetExtraction(format!("failed to decompress rootfs: {e}"))
+            })?;
+            std::fs::write(self.rootfs_path(), &decompressed).map_err(|e| {
+                VmError::AssetExtraction(format!("failed to write rootfs: {e}"))
+            })?;
+            info!(
+                path = %self.rootfs_path().display(),
+                size = decompressed.len(),
+                "Rootfs extracted"
+            );
+            return Ok(());
+        }
+
+        #[cfg(not(has_embedded_rootfs))]
         Err(VmError::AssetExtraction(
-            "embedded rootfs not yet available — provide --rootfs path".to_string(),
+            "no embedded rootfs — provide --rootfs path or place rootfs.ext4 in assets/ and rebuild"
+                .to_string(),
         )
         .into())
     }
