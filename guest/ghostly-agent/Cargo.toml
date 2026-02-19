@@ -1,0 +1,31 @@
+[package]
+name = "ghostly-agent"
+version = "0.1.0"
+edition = "2021"
+description = "Guest-side agent for VirtualGhost — SSH server and PTY manager"
+license = "MIT"
+
+[[bin]]
+name = "ghostly-agent"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+russh = "0.48"
+russh-keys = "0.48"
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+anyhow = "1"
+
+# Linux-only deps (this binary targets x86_64-unknown-linux-musl)
+[target.'cfg(unix)'.dependencies]
+tokio-vsock = "0.6"
+nix = { version = "0.29", features = ["process", "signal"] }
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+opt-level = "z"

@@ -1,0 +1,12 @@
+D:\GitHub\VirtualGhost\guest\ghostly-agent\target\debug\deps\seize-8a0a8427e95cd936.d: C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\lib.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\collector.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\raw.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\tls\mod.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\tls\thread_id.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\utils.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\reclaim.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\../README.md
+
+D:\GitHub\VirtualGhost\guest\ghostly-agent\target\debug\deps\libseize-8a0a8427e95cd936.rmeta: C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\lib.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\collector.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\raw.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\tls\mod.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\tls\thread_id.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\utils.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\reclaim.rs C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\../README.md
+
+C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\lib.rs:
+C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\collector.rs:
+C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\raw.rs:
+C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\tls\mod.rs:
+C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\tls\thread_id.rs:
+C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\utils.rs:
+C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\reclaim.rs:
+C:\Users\resta\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\seize-0.3.3\src\../README.md:

@@ -1,0 +1,71 @@
+[package]
+name = "virtualghost"
+version = "0.1.0"
+edition = "2021"
+description = "Isolated terminal sessions in Firecracker microVMs"
+license = "MIT"
+
+[[bin]]
+name = "virtualghost"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Configuration
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+directories = "6"
+
+# HTTP client for Firecracker API
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["client-legacy", "tokio"] }
+http-body-util = "0.1"
+bytes = "1"
+serde_json = "1"
+async-trait = "0.1"
+
+# SSH
+russh = "0.48"
+russh-keys = "0.48"
+ssh-key = "0.6"
+rand = "0.8"
+
+# Terminal UI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Virtual terminal emulation
+vte = "0.13"
+
+# Embedded assets
+zstd = "0.13"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["process", "signal"] }
+hyperlocal = "0.9"
+
+[build-dependencies]
+zstd = "0.13"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+opt-level = "z"
