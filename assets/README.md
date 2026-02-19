@@ -1,28 +1,38 @@
 # Assets
 
-This directory holds the VM kernel and rootfs images. These are compressed and embedded in the binary at build time by `build.rs`.
+This directory holds the VM kernel, rootfs, and QEMU files. These are compressed and embedded in the binary at build time by `build.rs`.
 
 ## Required Files
 
-- `vmlinux` — Linux kernel (bzImage from Arch Linux)
-- `rootfs.ext4` — Arch Linux ext4 image with Ghostty, Cage, Mesa, and guest agent
+- `vmlinux` — Linux kernel (extracted from Arch Linux package)
+- `rootfs.ext4` — Arch Linux ext4 image with Ghostty, Cage, seatd, Mesa, and guest agent
+- `qemu/` — QEMU binary and support files (platform-specific)
 
-Both files are gitignored (large binaries).
+All files are gitignored (large binaries).
 
 ## Building Assets
 
 From the project root:
 
 ```bash
+# Build kernel + rootfs via Docker (requires --privileged)
+make docker-build
 make assets
+
+# Package QEMU from a local install into assets/qemu/
+make package-qemu
 ```
 
-This builds a Docker container with Arch Linux, cross-compiles the guest agent, extracts the kernel, and creates the rootfs via `pacstrap`. Requires Docker with `--privileged` support.
+The Docker build creates an Arch Linux container, cross-compiles the guest agent (musl static binary), extracts the kernel, and creates the rootfs via `pacstrap` with: base, systemd, mesa, cage, ghostty, seatd, and dbus.
 
-## Then Build the Binary
+## Embedding in the Binary
 
 ```bash
 cargo build --release
 ```
 
-`build.rs` detects the assets, compresses them with zstd, and embeds them via `include_bytes!()`.
+`build.rs` detects the assets, compresses them with zstd (level 19), and embeds them via `include_bytes!()`. At runtime, the binary extracts them to a platform-specific cache directory on first launch.
+
+- Kernel: ~16 MB raw, ~15 MB compressed
+- Rootfs: ~1.4 GB raw, ~420 MB compressed
+- QEMU: ~140 MB tar, ~42 MB compressed
