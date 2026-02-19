@@ -25,7 +25,8 @@ pacstrap -c -G -M "$ROOTFS_DIR" \
     vulkan-intel \
     cage \
     ghostty \
-    dbus
+    dbus \
+    seatd
 
 # -------------------------------------------------------
 # Step 2: Install ghostly-agent binary
@@ -48,6 +49,8 @@ ln -sf /etc/systemd/system/ghostty-session.service \
     "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/ghostty-session.service"
 ln -sf /etc/systemd/system/ghostly-agent.service \
     "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/ghostly-agent.service"
+ln -sf /usr/lib/systemd/system/seatd.service \
+    "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/seatd.service"
 
 # -------------------------------------------------------
 # Step 4: System configuration

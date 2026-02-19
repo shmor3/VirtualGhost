@@ -1,14 +1,15 @@
 [Unit]
 Description=Ghostty Terminal (Cage kiosk session)
-After=systemd-user-sessions.service dbus.service
+After=systemd-user-sessions.service dbus.service seatd.service
 Wants=dbus.service
+Requires=seatd.service
 
 [Service]
 Type=simple
 
 # Cage runs as a Wayland kiosk compositor, launching Ghostty as its sole app.
 # When Ghostty exits, Cage exits, triggering VM shutdown.
-# Runs as root for DRM master access (no logind/seatd in minimal VM).
+# Runs as root for DRM master access via seatd.
 Environment=WLR_BACKENDS=drm
 Environment=WLR_DRM_DEVICES=/dev/dri/card0
 Environment=WLR_RENDERER=gles2
