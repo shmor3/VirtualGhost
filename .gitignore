@@ -3,6 +3,7 @@ node_modules/
 vendor/
 
 # Build output
+target/
 dist/
 build/
 out/
