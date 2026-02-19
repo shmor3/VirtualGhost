@@ -5,8 +5,8 @@ vendor/
 # Build output
 target/
 dist/
-build/
 out/
+!/guest/build/
 
 # Environment files
 .env

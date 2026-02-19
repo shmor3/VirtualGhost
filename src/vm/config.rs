@@ -30,7 +30,7 @@ impl VmConfigBuilder {
             },
             payload: PayloadConfig {
                 kernel: Some(kernel_path.to_string()),
-                cmdline: Some("console=ttyS0 root=/dev/vda1 rw".to_string()),
+                cmdline: Some("console=ttyS0 root=/dev/vda rw".to_string()),
                 firmware: None,
                 initramfs: None,
             },

@@ -1,0 +1,17 @@
+[Unit]
+Description=Ghostly Agent (SSH over vsock)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/ghostly-agent
+Restart=always
+RestartSec=1
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

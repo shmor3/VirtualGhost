@@ -1,0 +1,25 @@
+[Unit]
+Description=Ghostty Terminal (Cage kiosk session)
+After=systemd-user-sessions.service dbus.service
+Wants=dbus.service
+
+[Service]
+Type=simple
+User=ghostty
+Group=ghostty
+
+# Cage runs as a Wayland kiosk compositor, launching Ghostty as its sole app.
+# When Ghostty exits, Cage exits, triggering VM shutdown.
+Environment=WLR_BACKENDS=drm
+Environment=WLR_DRM_DEVICES=/dev/dri/card0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStartPre=/bin/mkdir -p /run/user/1000
+ExecStartPre=/bin/chown ghostty:ghostty /run/user/1000
+ExecStart=/usr/bin/cage /usr/bin/ghostty
+ExecStopPost=/usr/bin/systemctl poweroff
+
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
