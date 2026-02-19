@@ -8,10 +8,10 @@ mod models;
 mod process;
 
 #[cfg(unix)]
-pub use api::FirecrackerClient;
+pub use api::CloudHypervisorClient;
 pub use assets::AssetManager;
 #[cfg(unix)]
 pub use config::VmConfigBuilder;
 pub use models::*;
 #[cfg(unix)]
-pub use process::FirecrackerProcess;
+pub use process::CloudHypervisorProcess;

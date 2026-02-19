@@ -2,7 +2,7 @@
 name = "virtualghost"
 version = "0.1.0"
 edition = "2021"
-description = "Isolated terminal sessions in Firecracker microVMs"
+description = "Ghostty launcher in isolated Cloud Hypervisor VMs with GPU passthrough"
 license = "MIT"
 
 [[bin]]
@@ -21,7 +21,7 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 directories = "6"
 
-# HTTP client for Firecracker API
+# HTTP client for Cloud Hypervisor API
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "tokio"] }
 http-body-util = "0.1"
@@ -34,13 +34,6 @@ russh = "0.48"
 russh-keys = "0.48"
 ssh-key = "0.6"
 rand = "0.8"
-
-# Terminal UI
-ratatui = "0.29"
-crossterm = "0.28"
-
-# Virtual terminal emulation
-vte = "0.13"
 
 # Embedded assets
 zstd = "0.13"
@@ -60,6 +53,7 @@ tempfile = "3"
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29", features = ["process", "signal"] }
 hyperlocal = "0.9"
+walkdir = "2"
 
 [build-dependencies]
 zstd = "0.13"

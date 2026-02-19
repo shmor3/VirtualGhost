@@ -14,19 +14,16 @@ pub enum VirtualGhostError {
     #[error("Configuration error: {0}")]
     Config(#[from] ConfigError),
 
-    #[error("Terminal error: {0}")]
-    Terminal(#[from] TerminalError),
-
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
 
 #[derive(Debug, Error)]
 pub enum VmError {
-    #[error("failed to spawn firecracker process: {0}")]
+    #[error("failed to spawn cloud-hypervisor process: {0}")]
     SpawnFailed(std::io::Error),
 
-    #[error("firecracker API error: {status} {body}")]
+    #[error("cloud-hypervisor API error: {status} {body}")]
     ApiError { status: u16, body: String },
 
     #[error("VM boot timed out")]
@@ -35,8 +32,14 @@ pub enum VmError {
     #[error("asset extraction failed: {0}")]
     AssetExtraction(String),
 
-    #[error("firecracker process exited unexpectedly: code {0:?}")]
+    #[error("cloud-hypervisor process exited unexpectedly: code {0:?}")]
     ProcessExited(Option<i32>),
+
+    #[error("VFIO setup failed: {0}")]
+    VfioError(String),
+
+    #[error("GPU device not found: {0}")]
+    GpuNotFound(String),
 }
 
 #[derive(Debug, Error)]
@@ -71,14 +74,3 @@ pub enum ConfigError {
     #[error("config file error: {0}")]
     FileError(String),
 }
-
-#[derive(Debug, Error)]
-pub enum TerminalError {
-    #[error("terminal initialization failed: {0}")]
-    InitFailed(String),
-
-    #[error("render error: {0}")]
-    RenderError(String),
-}
-
-pub type Result<T> = std::result::Result<T, VirtualGhostError>;

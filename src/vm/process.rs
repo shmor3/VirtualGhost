@@ -6,37 +6,36 @@ use std::process::Stdio;
 use tokio::process::{Child, Command};
 use tracing::{info, warn};
 
-pub struct FirecrackerProcess {
+pub struct CloudHypervisorProcess {
     child: Child,
     socket_path: PathBuf,
 }
 
-impl FirecrackerProcess {
+impl CloudHypervisorProcess {
     pub async fn spawn(
-        firecracker_bin: &Path,
+        ch_bin: &Path,
         socket_path: &Path,
     ) -> Result<Self, VirtualGhostError> {
-        // Clean up stale socket if it exists
         if socket_path.exists() {
             std::fs::remove_file(socket_path).ok();
         }
 
         info!(
-            bin = %firecracker_bin.display(),
+            bin = %ch_bin.display(),
             socket = %socket_path.display(),
-            "Spawning Firecracker process"
+            "Spawning Cloud Hypervisor process"
         );
 
-        let child = Command::new(firecracker_bin)
-            .arg("--api-sock")
-            .arg(socket_path)
+        let child = Command::new(ch_bin)
+            .arg("--api-socket")
+            .arg(format!("path={}", socket_path.display()))
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .map_err(VmError::SpawnFailed)?;
 
-        // Wait briefly for the socket to appear
+        // Wait for the API socket to appear
         for _ in 0..50 {
             if socket_path.exists() {
                 break;
@@ -48,7 +47,7 @@ impl FirecrackerProcess {
             return Err(VmError::BootTimeout.into());
         }
 
-        info!("Firecracker process started, API socket ready");
+        info!("Cloud Hypervisor process started, API socket ready");
 
         Ok(Self {
             child,
@@ -65,7 +64,7 @@ impl FirecrackerProcess {
     }
 
     pub async fn kill(&mut self) -> Result<(), VirtualGhostError> {
-        warn!("Killing Firecracker process");
+        warn!("Killing Cloud Hypervisor process");
         self.child.kill().await.map_err(VirtualGhostError::Io)?;
         self.cleanup();
         Ok(())
@@ -78,7 +77,7 @@ impl FirecrackerProcess {
     }
 }
 
-impl Drop for FirecrackerProcess {
+impl Drop for CloudHypervisorProcess {
     fn drop(&mut self) {
         self.cleanup();
     }
