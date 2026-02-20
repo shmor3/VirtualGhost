@@ -83,6 +83,9 @@ GETTY
 ln -sf /usr/lib/systemd/system/serial-getty@.service \
     "$ROOTFS_DIR/etc/systemd/system/getty.target.wants/serial-getty@ttyS0.service"
 
+# Mask vconsole-setup (we stripped /usr/share/kbd for size; not needed in a kiosk VM)
+ln -sf /dev/null "$ROOTFS_DIR/etc/systemd/system/systemd-vconsole-setup.service"
+
 # Create ghostty user for the kiosk session
 chroot "$ROOTFS_DIR" useradd -m -s /bin/bash -G video,input ghostty 2>/dev/null || true
 
@@ -113,8 +116,10 @@ rm -rf "$ROOTFS_DIR/usr/lib/firmware"
 rm -rf "$ROOTFS_DIR/usr/lib/modules"/*/build
 rm -rf "$ROOTFS_DIR/usr/lib/modules"/*/extramodules
 
-# --- LLVM (150 MB! — only needed for llvmpipe/radeonsi shader compilation, not virgl) ---
-rm -f "$ROOTFS_DIR/usr/lib/libLLVM"*.so*
+# --- LLVM ---
+# NOTE: Cannot remove libLLVM — Mesa's libEGL links against it at load time.
+# Removing it breaks EGL platform support (EGL_EXT_platform_base), which
+# prevents wlroots/Cage from initializing. ~150 MB cost but required.
 
 # --- Vulkan (virgl only supports OpenGL, not Vulkan) ---
 # Keep libvulkan.so — Cage/wlroots links against it at load time even when using GLES2 renderer
@@ -135,12 +140,20 @@ find "$ROOTFS_DIR/usr/lib/dri/" \( -type f -o -type l \) \
     ! -name 'zink_dri.so' \
     -delete 2>/dev/null || true
 
-# --- Unused kernel modules (keep only virtio, drm, gpu) ---
+# --- Unused kernel modules (keep virtio, drm, gpu + their dependencies) ---
+# drm_kms_helper depends on: fb_sys_fops, sysimgblt, sysfillrect, syscopyarea, i2c
 if [ -d "$ROOTFS_DIR/usr/lib/modules" ]; then
     find "$ROOTFS_DIR/usr/lib/modules" -type f -name '*.ko*' \
         ! -path '*/virtio*' \
         ! -path '*/drm*' \
         ! -path '*/gpu*' \
+        ! -path '*/i2c*' \
+        ! -path '*/video*' \
+        ! -name 'fb.ko*' \
+        ! -name 'fb_sys_fops.ko*' \
+        ! -name 'sysimgblt.ko*' \
+        ! -name 'sysfillrect.ko*' \
+        ! -name 'syscopyarea.ko*' \
         -delete 2>/dev/null || true
     # Remove empty directories left after module deletion
     find "$ROOTFS_DIR/usr/lib/modules" -type d -empty -delete 2>/dev/null || true
@@ -148,6 +161,11 @@ if [ -d "$ROOTFS_DIR/usr/lib/modules" ]; then
     KVER=$(ls "$ROOTFS_DIR/usr/lib/modules/" | head -1)
     if [ -n "$KVER" ]; then
         chroot "$ROOTFS_DIR" depmod -a "$KVER" 2>/dev/null || true
+    fi
+    # Verify critical modules survived cleanup
+    if ! find "$ROOTFS_DIR/usr/lib/modules" -name 'virtio-gpu*' | grep -q .; then
+        echo "ERROR: virtio-gpu module missing after cleanup!" >&2
+        exit 1
     fi
 fi
 

@@ -12,13 +12,15 @@ Type=simple
 # Runs as root for DRM master access via seatd.
 Environment=WLR_BACKENDS=drm
 Environment=WLR_DRM_DEVICES=/dev/dri/card0
-Environment=WLR_RENDERER=gles2
 Environment=WLR_LIBINPUT_NO_DEVICES=1
 Environment=XDG_RUNTIME_DIR=/run/user/0
 Environment=MESA_GL_VERSION_OVERRIDE=3.3
 ExecStartPre=/bin/mkdir -p /run/user/0
+ExecStartPre=/bin/sh -c 'until [ -e /dev/dri/card0 ]; do sleep 0.5; done'
 ExecStart=/usr/bin/cage /usr/bin/ghostty
 ExecStopPost=/usr/bin/systemctl poweroff
+StandardOutput=journal+console
+StandardError=journal+console
 
 Restart=on-failure
 RestartSec=2

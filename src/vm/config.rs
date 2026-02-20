@@ -37,6 +37,7 @@ impl Accelerator {
 
 /// Display backend for QEMU.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub enum DisplayMode {
     Sdl,
     Cocoa,
@@ -94,11 +95,7 @@ impl QemuConfig {
         rootfs_path: &str,
     ) -> Self {
         let accel = Accelerator::detect();
-        let display = if accel == Accelerator::Tcg {
-            DisplayMode::Sdl
-        } else {
-            DisplayMode::detect()
-        };
+        let display = DisplayMode::detect();
 
         Self {
             qemu_bin,
@@ -106,7 +103,7 @@ impl QemuConfig {
             memory_mib,
             kernel_path: kernel_path.to_string(),
             rootfs_path: rootfs_path.to_string(),
-            cmdline: "console=ttyS0 root=/dev/vda rw".to_string(),
+            cmdline: "console=ttyS0 root=/dev/vda rw quiet".to_string(),
             display,
             accel,
             gpu_passthrough: Vec::new(),
@@ -158,8 +155,19 @@ impl QemuConfig {
             args.extend(["-display".into(), "none".into()]);
             args.extend(["-vga".into(), "none".into()]);
         } else {
-            args.extend(["-device".into(), "virtio-gpu-gl-pci".into()]);
-            args.extend(["-display".into(), format!("{},gl=on", self.display.as_arg())]);
+            if self.accel == Accelerator::Kvm || self.accel == Accelerator::Hvf {
+                // virgl 3D: host GL context passed to guest via virtio-gpu
+                args.extend(["-device".into(), "virtio-vga-gl".into()]);
+                args.extend([
+                    "-display".into(),
+                    format!("{},gl=on", self.display.as_arg()),
+                ]);
+            } else {
+                // TCG/software: no virgl support, basic VGA framebuffer.
+                // Guest uses wlroots pixman renderer (software rendering).
+                args.extend(["-device".into(), "virtio-vga".into()]);
+                args.extend(["-display".into(), self.display.as_arg().into()]);
+            }
             args.extend(["-device".into(), "virtio-keyboard-pci".into()]);
             args.extend(["-device".into(), "virtio-mouse-pci".into()]);
         }
