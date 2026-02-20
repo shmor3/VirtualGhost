@@ -17,12 +17,14 @@ echo "=== Building Arch Linux rootfs ==="
 echo "--- pacstrap: installing base packages ---"
 pacstrap -c -G -M "$ROOTFS_DIR" \
     base \
+    linux \
     systemd \
     mesa \
     cage \
     ghostty \
     dbus \
-    seatd
+    seatd \
+    openssh
 
 # -------------------------------------------------------
 # Step 2: Install ghostly-agent binary
@@ -107,18 +109,24 @@ rm -rf "$ROOTFS_DIR/usr/share/bash-completion"
 # --- Firmware (VM uses virtio, no physical hardware) ---
 rm -rf "$ROOTFS_DIR/usr/lib/firmware"
 
+# --- Kernel build/source dirs (only needed for compiling modules, not loading them) ---
+rm -rf "$ROOTFS_DIR/usr/lib/modules"/*/build
+rm -rf "$ROOTFS_DIR/usr/lib/modules"/*/extramodules
+
 # --- LLVM (150 MB! — only needed for llvmpipe/radeonsi shader compilation, not virgl) ---
 rm -f "$ROOTFS_DIR/usr/lib/libLLVM"*.so*
 
 # --- Vulkan (virgl only supports OpenGL, not Vulkan) ---
+# Keep libvulkan.so — Cage/wlroots links against it at load time even when using GLES2 renderer
 rm -rf "$ROOTFS_DIR/usr/share/vulkan"
-rm -rf "$ROOTFS_DIR/usr/lib/libvulkan"*
 rm -rf "$ROOTFS_DIR/usr/lib/libVk"*
 rm -rf "$ROOTFS_DIR/usr/lib/libSPIRV"*
 rm -rf "$ROOTFS_DIR/usr/lib/libspirv-cross"*
 
 # --- Unused mesa DRI drivers (keep only virtio_gpu, swrast, kms_swrast, libdril, zink) ---
-find "$ROOTFS_DIR/usr/lib/dri/" -type f \
+# libdril_dri.so is the real binary; all others are symlinks to it.
+# Delete unused symlinks and any extra regular files.
+find "$ROOTFS_DIR/usr/lib/dri/" \( -type f -o -type l \) \
     ! -name 'virtio_gpu_dri.so' \
     ! -name 'virtio_gpu_drv_video.so' \
     ! -name 'swrast_dri.so' \
@@ -134,6 +142,13 @@ if [ -d "$ROOTFS_DIR/usr/lib/modules" ]; then
         ! -path '*/drm*' \
         ! -path '*/gpu*' \
         -delete 2>/dev/null || true
+    # Remove empty directories left after module deletion
+    find "$ROOTFS_DIR/usr/lib/modules" -type d -empty -delete 2>/dev/null || true
+    # Rebuild module dependencies so modprobe works
+    KVER=$(ls "$ROOTFS_DIR/usr/lib/modules/" | head -1)
+    if [ -n "$KVER" ]; then
+        chroot "$ROOTFS_DIR" depmod -a "$KVER" 2>/dev/null || true
+    fi
 fi
 
 # --- Dev-only files (headers, pkgconfig, static libs, GObject introspection) ---
@@ -182,10 +197,10 @@ rm -f "$ROOTFS_DIR/usr/bin/elfedit" "$ROOTFS_DIR/usr/bin/gprof"
 rm -rf "$ROOTFS_DIR/usr/lib/ldscripts"
 
 # --- Multimedia frameworks (not needed for terminal emulator) ---
+# Keep libgst*.so — GTK4 has GStreamer in its ELF NEEDED entries; removing breaks Ghostty load
+# Keep libglycin*.so — librsvg/GTK4 links against it at load time
 rm -rf "$ROOTFS_DIR/usr/lib/gstreamer-1.0"
-rm -f "$ROOTFS_DIR/usr/lib/libgst"*.so*
 rm -rf "$ROOTFS_DIR/usr/lib/glycin-loaders"
-rm -f "$ROOTFS_DIR/usr/lib/libglycin"*.so*
 
 # --- Large data files not needed in VM ---
 rm -rf "$ROOTFS_DIR/usr/share/hwdata"
@@ -198,13 +213,11 @@ rm -rf "$ROOTFS_DIR/usr/share/ghostty/terminfo"
 rm -rf "$ROOTFS_DIR/usr/share/terminfo"/[!x]*
 rm -rf "$ROOTFS_DIR/usr/share/appstream"
 
-# --- ICU data (32 MB — strip to minimal) ---
-# Keep the main ICU library but remove the huge data file if possible
-# Ghostty only needs basic UTF-8 support which glibc provides
-rm -f "$ROOTFS_DIR/usr/lib/libicudata"*.so* 2>/dev/null || true
-rm -f "$ROOTFS_DIR/usr/lib/libicui18n"*.so* 2>/dev/null || true
-rm -f "$ROOTFS_DIR/usr/lib/libicuuc"*.so* 2>/dev/null || true
+# --- ICU (keep — Ghostty needs libicuuc via tinysparql/appstream) ---
+# Only remove libicuio (I/O stream utils, not needed at runtime)
 rm -f "$ROOTFS_DIR/usr/lib/libicuio"*.so* 2>/dev/null || true
+rm -f "$ROOTFS_DIR/usr/lib/libicutest"*.so* 2>/dev/null || true
+rm -f "$ROOTFS_DIR/usr/lib/libicutu"*.so* 2>/dev/null || true
 
 # --- gconv modules (glibc charset converters — keep only UTF-8 related) ---
 if [ -d "$ROOTFS_DIR/usr/lib/gconv" ]; then

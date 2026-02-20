@@ -34,7 +34,7 @@ cargo build --release
 `build.rs` detects the assets, compresses them with zstd, and embeds them via `include_bytes!()`. At runtime, the binary stream-decompresses them to a platform-specific cache directory on first launch.
 
 - Kernel: ~16 MB raw → ~16 MB compressed (zstd level 22)
-- Rootfs: ~544 MB raw → ~111 MB compressed (zstd level 19, streaming)
+- Rootfs: ~570 MB raw → ~111 MB compressed (zstd level 19, streaming)
 - QEMU: ~142 MB tar → ~40 MB compressed (zstd level 22)
 
-The rootfs is aggressively stripped during build: firmware, unused mesa/Vulkan drivers, unused kernel modules, docs, man pages, and static libraries are all removed since the VM only needs virtio drivers.
+The rootfs is aggressively stripped during build: LLVM, ICU, firmware, Vulkan/SPIRV, unused mesa DRI drivers, unused kernel modules, build tools, debug/profiling libraries, GStreamer, docs, man pages, and static libraries are all removed since the VM only needs virtio drivers and virgl uses host-side shader compilation.
